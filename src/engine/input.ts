@@ -1,6 +1,7 @@
 /**
  * Mouse/wheel event handling for canvas interaction.
  * Translates raw DOM events to pan/zoom/hover/click/doubleClick callbacks.
+ * All screen coordinates are canvas-relative (accounting for canvas position on page).
  */
 
 const DRAG_THRESHOLD = 3; // pixels — movement below this is a click, not a drag
@@ -13,7 +14,7 @@ export class InputHandler {
   private _startY = 0;
   private _lastX = 0;
   private _lastY = 0;
-  private _listeners: Array<[string, EventListener]> = [];
+  private _listeners: Array<[string, EventListener, AddEventListenerOptions?]> = [];
 
   onPan: ((dx: number, dy: number) => void) | null = null;
   onZoom: ((delta: number, screenX: number, screenY: number) => void) | null = null;
@@ -26,11 +27,21 @@ export class InputHandler {
     this._bind();
   }
 
+  /** Convert clientX/Y to canvas-relative coords, accounting for DPR */
+  private _toCanvas(clientX: number, clientY: number): [number, number] {
+    const rect = this._canvas.getBoundingClientRect();
+    const dpr = this._canvas.width / rect.width || 1;
+    return [
+      (clientX - rect.left) * dpr,
+      (clientY - rect.top) * dpr,
+    ];
+  }
+
   private _bind(): void {
-    const on = (type: string, fn: (e: any) => void) => {
+    const on = (type: string, fn: (e: any) => void, options?: AddEventListenerOptions) => {
       const listener = fn as EventListener;
-      this._canvas.addEventListener(type, listener);
-      this._listeners.push([type, listener]);
+      this._canvas.addEventListener(type, listener, options);
+      this._listeners.push([type, listener, options]);
     };
 
     on('pointerdown', (e: PointerEvent) => {
@@ -57,7 +68,9 @@ export class InputHandler {
         }
 
         if (this._isDragging && this.onPan) {
-          this.onPan(dx, dy);
+          // Pan uses raw pixel deltas (not canvas-scaled)
+          const dpr = this._canvas.width / this._canvas.getBoundingClientRect().width || 1;
+          this.onPan(dx * dpr, dy * dpr);
         }
 
         this._lastX = e.clientX;
@@ -65,7 +78,8 @@ export class InputHandler {
       } else {
         // Not dragging — hover
         if (this.onHover) {
-          this.onHover(e.clientX, e.clientY);
+          const [cx, cy] = this._toCanvas(e.clientX, e.clientY);
+          this.onHover(cx, cy);
         }
       }
     });
@@ -76,29 +90,32 @@ export class InputHandler {
 
     on('click', (e: MouseEvent) => {
       if (!this._isDragging && this.onClick) {
-        this.onClick(e.clientX, e.clientY);
+        const [cx, cy] = this._toCanvas(e.clientX, e.clientY);
+        this.onClick(cx, cy);
       }
     });
 
     on('dblclick', (e: MouseEvent) => {
       if (this.onDoubleClick) {
-        this.onDoubleClick(e.clientX, e.clientY);
+        const [cx, cy] = this._toCanvas(e.clientX, e.clientY);
+        this.onDoubleClick(cx, cy);
       }
     });
 
     on('wheel', (e: WheelEvent) => {
       e.preventDefault();
       if (this.onZoom) {
+        const [cx, cy] = this._toCanvas(e.clientX, e.clientY);
         // Scroll up (negative deltaY) = zoom in = positive delta
         const delta = -e.deltaY > 0 ? 1 : -1;
-        this.onZoom(delta, e.clientX, e.clientY);
+        this.onZoom(delta, cx, cy);
       }
-    });
+    }, { passive: false });
   }
 
   dispose(): void {
-    for (const [type, listener] of this._listeners) {
-      this._canvas.removeEventListener(type, listener);
+    for (const [type, listener, options] of this._listeners) {
+      this._canvas.removeEventListener(type, listener, options);
     }
     this._listeners.length = 0;
   }

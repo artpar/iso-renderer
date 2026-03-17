@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { IsoEngine } from '../engine/iso-engine';
 import type { IsoMap, IsoCallbacks } from '../types';
 
@@ -25,11 +25,23 @@ export function IsometricCanvas({
 }: IsometricCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<IsoEngine | null>(null);
+  const mapRef = useRef<IsoMap | null>(null);
+
+  // Track current map for resize handler
+  mapRef.current = map;
 
   // Create engine on mount
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    // Initialize canvas size immediately from layout
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+    }
 
     const engine = new IsoEngine({ canvas });
     engineRef.current = engine;
@@ -43,6 +55,11 @@ export function IsometricCanvas({
           canvas.width = width * dpr;
           canvas.height = height * dpr;
           engine.resize(canvas.width, canvas.height);
+          // Re-fit bounds on resize so the map stays centered
+          const currentMap = mapRef.current;
+          if (currentMap) {
+            engine.fitBounds(currentMap.bounds);
+          }
           engine.render();
         }
       }
