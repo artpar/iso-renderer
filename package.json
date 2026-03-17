@@ -1,0 +1,61 @@
+{
+  "name": "@anthropic/iso-renderer",
+  "version": "0.1.0",
+  "description": "High-performance isometric map renderer using Canvas 2D with painter's algorithm",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./react": {
+      "import": "./dist/react/index.js",
+      "types": "./dist/react/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "vite --mode demo",
+    "build": "tsc && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:update": "vitest run --update",
+    "test:ui": "vitest --ui",
+    "demo": "vite --mode demo",
+    "preview": "vite preview"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vitest": "^3.0.0",
+    "canvas": "^3.1.0",
+    "pixelmatch": "^6.0.0",
+    "pngjs": "^7.0.0",
+    "@types/node": "^22.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@types/react": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "vite-plugin-dts": "^4.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anthropic/iso-renderer.git"
+  },
+  "homepage": "https://anthropic.github.io/iso-renderer"
+}

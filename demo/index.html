@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>iso-renderer Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a1a;
+      color: #f0f0f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow: hidden;
+    }
+    #app {
+      display: flex;
+      height: 100vh;
+    }
+    #sidebar {
+      width: 280px;
+      background: #222;
+      border-right: 1px solid #444;
+      padding: 16px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    #sidebar h1 {
+      font-size: 18px;
+      margin-bottom: 12px;
+      color: #e0a050;
+    }
+    #sidebar h2 {
+      font-size: 13px;
+      text-transform: uppercase;
+      color: #888;
+      margin: 16px 0 8px;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 8px 12px;
+      margin: 4px 0;
+      background: #333;
+      border: 1px solid #555;
+      color: #f0f0f0;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: left;
+      font-size: 13px;
+    }
+    .btn:hover { background: #444; }
+    .btn.active { border-color: #e0a050; background: #3a3020; }
+    #canvas-wrap {
+      flex: 1;
+      position: relative;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    #info {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(0,0,0,0.7);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      pointer-events: none;
+    }
+    #tooltip {
+      position: absolute;
+      display: none;
+      background: rgba(0,0,0,0.85);
+      border: 1px solid #555;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .stat { color: #aaa; }
+    .stat b { color: #f0f0f0; }
+    label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 4px 0;
+      font-size: 13px;
+    }
+    input[type=range] {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="sidebar">
+      <h1>iso-renderer</h1>
+      <p style="font-size:12px;color:#888;margin-bottom:12px;">
+        High-performance isometric Canvas 2D renderer. Pan: drag. Zoom: scroll. Click: select. Double-click: focus.
+      </p>
+
+      <h2>Scenes</h2>
+      <button class="btn active" data-scene="factory">Factory Complex</button>
+      <button class="btn" data-scene="grid">Grid City</button>
+      <button class="btn" data-scene="stress100">Stress 100</button>
+      <button class="btn" data-scene="stress500">Stress 500</button>
+      <button class="btn" data-scene="stress1000">Stress 1000</button>
+
+      <h2>Options</h2>
+      <label>
+        <input type="checkbox" id="animate" />
+        Animate particles
+      </label>
+
+      <h2>Selected</h2>
+      <div id="selected-info" style="font-size:12px;color:#888;">None</div>
+    </div>
+    <div id="canvas-wrap">
+      <canvas id="canvas"></canvas>
+      <div id="info">
+        <span class="stat">Hover: <b id="hover-id">—</b></span>
+      </div>
+      <div id="tooltip"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { IsoEngine } from '../src/index.ts';
+
+    const canvas = document.getElementById('canvas');
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = canvas.offsetWidth * dpr;
+    canvas.height = canvas.offsetHeight * dpr;
+
+    const engine = new IsoEngine({ canvas });
+
+    const hoverEl = document.getElementById('hover-id');
+    const tooltipEl = document.getElementById('tooltip');
+    const selectedEl = document.getElementById('selected-info');
+
+    engine.setCallbacks({
+      onHover: (id) => {
+        hoverEl.textContent = id || '—';
+        if (id) {
+          tooltipEl.style.display = 'block';
+          tooltipEl.textContent = id;
+        } else {
+          tooltipEl.style.display = 'none';
+        }
+      },
+      onSelect: (id) => {
+        selectedEl.textContent = id || 'None';
+      },
+      onFocus: (id) => {
+        selectedEl.textContent = `Focus: ${id}`;
+      },
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      tooltipEl.style.left = (e.clientX - canvas.getBoundingClientRect().left + 12) + 'px';
+      tooltipEl.style.top = (e.clientY - canvas.getBoundingClientRect().top - 20) + 'px';
+    });
+
+    // Scene generators
+    const colors = ['#F2D024', '#E84D8A', '#56B870', '#4A90D9', '#E67E22', '#1ABC9C', '#9B59B6', '#3498DB'];
+
+    function factoryScene() {
+      return {
+        version: 1,
+        bounds: { minX: 0, maxX: 60, minZ: 0, maxZ: 50 },
+        cities: [
+          {
+            id: 'factory-a', label: 'Assembly Line', category: 'factory',
+            x: 2, z: 2, width: 22, depth: 20, isFocus: true, importance: 0.8,
+            inputPorts: [{ name: 'raw', color: '#E84D8A', x: 5, width: 3 }],
+            outputPorts: [{ name: 'product', color: '#56B870', x: 8, width: 4 }],
+            grid: { cols: 3, rows: 2, colX: [4, 10, 16], rowZ: [4, 12], colWidths: [5, 5, 5], rowHeights: [6, 6] },
+            subPlatforms: [],
+          },
+          {
+            id: 'factory-b', label: 'Warehouse', category: 'storage',
+            x: 34, z: 5, width: 18, depth: 16, isFocus: false, importance: 0.5,
+            inputPorts: [{ name: 'goods', color: '#56B870', x: 4, width: 4 }],
+            outputPorts: [],
+            grid: { cols: 2, rows: 2, colX: [36, 42], rowZ: [7, 13], colWidths: [5, 5], rowHeights: [5, 5] },
+            subPlatforms: [],
+          },
+          {
+            id: 'factory-c', label: 'Quality Control', category: 'qa',
+            x: 8, z: 28, width: 16, depth: 14, isFocus: false, importance: 0.6,
+            inputPorts: [{ name: 'sample', color: '#F2D024', x: 6, width: 3 }],
+            outputPorts: [{ name: 'report', color: '#4A90D9', x: 6, width: 3 }],
+            grid: { cols: 2, rows: 1, colX: [10, 18], rowZ: [30], colWidths: [6, 6], rowHeights: [10] },
+            subPlatforms: [],
+          },
+        ],
+        buildings: [
+          { id: 'b-press', label: 'Press', category: 'machine', color: '#E67E22', worldX: 5, worldZ: 5, width: 4, depth: 3, height: 4, importance: 0.9, cityId: 'factory-a',
+            decorations: [{ face: 'top', kind: 'stud', color: '#E84D8A', count: 3 }] },
+          { id: 'b-weld', label: 'Welder', category: 'machine', color: '#E74C3C', worldX: 11, worldZ: 5, width: 3, depth: 3, height: 3, importance: 0.7, cityId: 'factory-a' },
+          { id: 'b-paint', label: 'Paint', category: 'machine', color: '#1ABC9C', worldX: 17, worldZ: 5, width: 3, depth: 3, height: 2, importance: 0.5, cityId: 'factory-a',
+            decorations: [{ face: 'top', kind: 'stripe', color: '#F2D024', count: 3 }] },
+          { id: 'b-inspect', label: 'Inspector', category: 'sensor', color: '#F2D024', worldX: 5, worldZ: 13, width: 3, depth: 3, height: 2, importance: 0.4, cityId: 'factory-a' },
+          { id: 'b-pack', label: 'Packer', category: 'machine', color: '#56B870', worldX: 11, worldZ: 13, width: 4, depth: 3, height: 3, importance: 0.6, cityId: 'factory-a' },
+          { id: 'b-shelf1', label: 'Shelf A', category: 'storage', color: '#C8C8C8', worldX: 37, worldZ: 8, width: 4, depth: 3, height: 5, importance: 0.3, cityId: 'factory-b' },
+          { id: 'b-shelf2', label: 'Shelf B', category: 'storage', color: '#C8C8C8', worldX: 43, worldZ: 8, width: 4, depth: 3, height: 5, importance: 0.3, cityId: 'factory-b' },
+          { id: 'b-shelf3', label: 'Shelf C', category: 'storage', color: '#95A5A6', worldX: 37, worldZ: 14, width: 4, depth: 3, height: 3, importance: 0.2, cityId: 'factory-b' },
+          { id: 'b-tester', label: 'Tester', category: 'qa', color: '#3498DB', worldX: 11, worldZ: 31, width: 5, depth: 4, height: 3, importance: 0.7, cityId: 'factory-c' },
+          { id: 'b-logger', label: 'Logger', category: 'qa', color: '#9B59B6', worldX: 19, worldZ: 31, width: 3, depth: 3, height: 2, importance: 0.4, cityId: 'factory-c' },
+        ],
+        roads: [
+          { sourceCityId: 'factory-a', targetCityId: 'factory-b', waypoints: [[24, 0.08, 12], [30, 0.08, 12], [34, 0.08, 12]], width: 2, intensity: 0.7, category: 'transport', color: '#56B870' },
+          { sourceCityId: 'factory-a', targetCityId: 'factory-c', waypoints: [[12, 0.04, 22], [12, 0.04, 28]], width: 1.5, intensity: 0.4, category: 'inspection', color: '#F2D024' },
+        ],
+        pipelines: [
+          { id: 'p-1', label: 'assembly flow', cityId: 'factory-a', sourceBuilding: 'b-press', targetBuildings: ['b-weld'], waypoints: [[9, 1, 7], [11, 1, 7]], color: '#E67E22', pipeWidth: 0.4, directed: true },
+          { id: 'p-2', label: 'paint flow', cityId: 'factory-a', sourceBuilding: 'b-weld', targetBuildings: ['b-paint'], waypoints: [[14, 1, 7], [17, 1, 7]], color: '#E74C3C', pipeWidth: 0.3, directed: true },
+          { id: 'p-3', label: 'pack flow', cityId: 'factory-a', sourceBuilding: 'b-paint', targetBuildings: ['b-pack'], waypoints: [[18, 1, 8], [18, 1, 12], [15, 1, 14]], color: '#1ABC9C', pipeWidth: 0.3, directed: true },
+        ],
+        districts: [
+          { id: 'd-production', label: 'Production Zone', x: 0, z: 0, width: 30, depth: 24 },
+        ],
+      };
+    }
+
+    function gridScene() {
+      const buildings = [];
+      const size = 5;
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          buildings.push({
+            id: `g-${r}-${c}`, label: `${r},${c}`, category: 'cell', color: colors[(r + c) % colors.length],
+            worldX: 4 + c * 8, worldZ: 4 + r * 8, width: 5, depth: 3, height: 1 + (r + c) % 4,
+            importance: 0.5, cityId: 'grid-city',
+          });
+        }
+      }
+      return {
+        version: 1,
+        bounds: { minX: 0, maxX: size * 8 + 6, minZ: 0, maxZ: size * 8 + 6 },
+        cities: [{
+          id: 'grid-city', label: 'Grid City', category: 'primary',
+          x: 0, z: 0, width: size * 8 + 6, depth: size * 8 + 6,
+          isFocus: true, importance: 0.5, inputPorts: [], outputPorts: [],
+          grid: {
+            cols: size, rows: size,
+            colX: Array.from({length: size}, (_, i) => 4 + i * 8),
+            rowZ: Array.from({length: size}, (_, i) => 4 + i * 8),
+            colWidths: Array(size).fill(6),
+            rowHeights: Array(size).fill(6),
+          },
+          subPlatforms: [],
+        }],
+        buildings,
+        roads: [], pipelines: [], districts: [],
+      };
+    }
+
+    function stressScene(n) {
+      const cols = Math.ceil(Math.sqrt(n));
+      const sp = 6;
+      const sz = cols * sp + 4;
+      const buildings = [];
+      for (let i = 0; i < n; i++) {
+        buildings.push({
+          id: `s-${i}`, label: `#${i}`, category: 'unit', color: colors[i % colors.length],
+          worldX: 4 + (i % cols) * sp, worldZ: 4 + Math.floor(i / cols) * sp,
+          width: 3, depth: 2, height: 1 + Math.random() * 4,
+          importance: Math.random(), cityId: 'stress',
+        });
+      }
+      return {
+        version: 1,
+        bounds: { minX: 0, maxX: sz, minZ: 0, maxZ: sz },
+        cities: [{
+          id: 'stress', label: `Stress ${n}`, category: 'primary',
+          x: 0, z: 0, width: sz, depth: sz, isFocus: true, importance: 0.5,
+          inputPorts: [], outputPorts: [],
+          grid: { cols, rows: Math.ceil(n/cols),
+            colX: Array.from({length: cols}, (_, i) => 4 + i * sp),
+            rowZ: Array.from({length: Math.ceil(n/cols)}, (_, i) => 4 + i * sp),
+            colWidths: Array(cols).fill(sp-1), rowHeights: Array(Math.ceil(n/cols)).fill(sp-1),
+          },
+          subPlatforms: [],
+        }],
+        buildings, roads: [], pipelines: [], districts: [],
+      };
+    }
+
+    const scenes = {
+      factory: factoryScene,
+      grid: gridScene,
+      stress100: () => stressScene(100),
+      stress500: () => stressScene(500),
+      stress1000: () => stressScene(1000),
+    };
+
+    function loadScene(name) {
+      const map = scenes[name]();
+      engine.setMap(map);
+      engine.fitBounds(map.bounds);
+      engine.render();
+      document.querySelectorAll('.btn').forEach(b => b.classList.toggle('active', b.dataset.scene === name));
+    }
+
+    document.querySelectorAll('.btn[data-scene]').forEach(btn => {
+      btn.addEventListener('click', () => loadScene(btn.dataset.scene));
+    });
+
+    document.getElementById('animate').addEventListener('change', (e) => {
+      if (e.target.checked) engine.startAnimationLoop();
+      else { engine.stopAnimationLoop(); engine.render(); }
+    });
+
+    window.addEventListener('resize', () => {
+      canvas.width = canvas.offsetWidth * dpr;
+      canvas.height = canvas.offsetHeight * dpr;
+      engine.resize(canvas.width, canvas.height);
+      engine.render();
+    });
+
+    loadScene('factory');
+  </script>
+</body>
+</html>

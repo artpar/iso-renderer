@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Visual test artifacts — diffs are generated on failure, not committed
+src/test/diffs/
+
+# Keep snapshots in git (they ARE the source of truth for visual tests)
+# src/test/snapshots/  ← tracked
